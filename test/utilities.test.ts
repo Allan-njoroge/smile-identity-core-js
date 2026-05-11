@@ -163,7 +163,10 @@ describe('Utilities', () => {
         });
 
       const utilities = new Utilities('001', mockApiKey, 0);
-      await utilities.get_job_status(partnerParams.user_id, partnerParams.job_id);
+      await utilities.get_job_status(
+        partnerParams.user_id,
+        partnerParams.job_id,
+      );
       expect(scope.isDone()).toEqual(true);
     });
   });

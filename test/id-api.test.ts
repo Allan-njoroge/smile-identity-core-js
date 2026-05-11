@@ -352,8 +352,12 @@ describe('IDapi', () => {
         .replyWithError('async request failed');
 
       await expect(
-        instance.submitAsyncjob(partner_params, id_info, 'https://callback.url'),
-      ).rejects.toThrow(new Error('async request failed'));
+        instance.submitAsyncjob(
+          partner_params,
+          id_info,
+          'https://callback.url',
+        ),
+      ).rejects.toThrow(/async request failed/);
       expect(scope.isDone()).toBe(true);
     });
   });
@@ -534,9 +538,9 @@ describe('IDapi', () => {
         .times(2)
         .replyWithError('poll error');
 
-      await expect(instance.pollJobStatus(partner_params, 1, 1)).rejects.toThrow(
-        new Error('poll error'),
-      );
+      await expect(
+        instance.pollJobStatus(partner_params, 1, 1),
+      ).rejects.toThrow(/poll error/);
       expect(scope.isDone()).toBe(true);
     });
 
