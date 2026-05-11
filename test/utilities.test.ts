@@ -139,5 +139,32 @@ describe('Utilities', () => {
       );
       expect(scope.isDone()).toEqual(true);
     });
+
+    it('should use default options when options are not provided', async () => {
+      expect.assertions(5);
+      const partnerParams = { user_id: '1', job_id: '1', job_type: 4 };
+      const timestamp = new Date().toISOString();
+      const { signature } = new Signature('001', mockApiKey).generate_signature(
+        timestamp,
+      );
+
+      const scope = nock('https://testapi.smileidentity.com')
+        .post('/v1/job_status', (body) => {
+          expect(body.job_id).toEqual(partnerParams.job_id);
+          expect(body.user_id).toEqual(partnerParams.user_id);
+          expect(body.image_links).toEqual(false);
+          expect(body.history).toEqual(false);
+          return true;
+        })
+        .reply(200, {
+          job_complete: true,
+          signature,
+          timestamp,
+        });
+
+      const utilities = new Utilities('001', mockApiKey, 0);
+      await utilities.get_job_status(partnerParams.user_id, partnerParams.job_id);
+      expect(scope.isDone()).toEqual(true);
+    });
   });
 });

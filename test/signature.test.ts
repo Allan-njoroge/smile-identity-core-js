@@ -107,5 +107,13 @@ describe('Signature', () => {
       const output = hmac.digest().toString('base64');
       expect(signer.confirm_signature(timestamp, output)).toEqual(true);
     });
+
+    it('should reject an invalid incoming signature', () => {
+      expect.assertions(1);
+      const timestamp = new Date().toISOString();
+      expect(
+        signer.confirm_signature(timestamp, 'this-is-an-invalid-signature'),
+      ).toEqual(false);
+    });
   });
 });

@@ -290,6 +290,74 @@ describe('IDapi', () => {
     });
   });
 
+  describe('#submitAsyncjob', () => {
+    it('should be able to send an asynchronous ID verification job', async () => {
+      expect.assertions(5);
+      const instance = new IDApi('001', 'api_key', 0);
+      const partner_params = {
+        user_id: '1',
+        job_id: '1',
+        job_type: JOB_TYPE.BASIC_KYC,
+      };
+      const id_info = {
+        country: 'NG',
+        id_type: 'BVN',
+        id_number: '00000000000',
+      };
+      const callbackUrl = 'https://a_callback.com';
+
+      const postMock = jest.fn(() => true);
+      const scope = nock('https://testapi.smileidentity.com')
+        .post('/v1/async_id_verification', postMock)
+        .reply(200, { success: true });
+
+      const resp = await instance.submitAsyncjob<{ success: boolean }>(
+        partner_params,
+        id_info,
+        callbackUrl,
+      );
+      expect(resp).toEqual({ success: true });
+      expect(scope.isDone()).toBe(true);
+      expect(postMock).toHaveBeenCalledWith({
+        callback_url: callbackUrl,
+        country: id_info.country,
+        id_number: id_info.id_number,
+        id_type: id_info.id_type,
+        partner_id: '001',
+        timestamp: expect.any(String),
+        signature: expect.any(String),
+        partner_params,
+        ...sdkVersionInfo,
+      });
+      expect(postMock).toHaveBeenCalledTimes(1);
+      expect(postMock.mock.calls[0][0].callback_url).toEqual(callbackUrl);
+    });
+
+    it('should reject when an asynchronous request fails', async () => {
+      expect.assertions(2);
+      const instance = new IDApi('001', 'api_key', 0);
+      const partner_params = {
+        user_id: '1',
+        job_id: '1',
+        job_type: JOB_TYPE.BASIC_KYC,
+      };
+      const id_info = {
+        country: 'NG',
+        id_type: 'BVN',
+        id_number: '00000000000',
+      };
+
+      const scope = nock('https://testapi.smileidentity.com')
+        .post('/v1/async_id_verification')
+        .replyWithError('async request failed');
+
+      await expect(
+        instance.submitAsyncjob(partner_params, id_info, 'https://callback.url'),
+      ).rejects.toThrow(new Error('async request failed'));
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
   describe('business_verification', () => {
     it('successfully sends a business verification job', async () => {
       expect.assertions(3);
@@ -423,6 +491,63 @@ describe('IDapi', () => {
         timestamp: expect.any(String),
         signature: expect.any(String),
       });
+    });
+
+    it('retries polling until the job is complete', async () => {
+      expect.assertions(3);
+      const instance = new IDApi('001', 'api_key', 0);
+      const partner_params = {
+        user_id: '1',
+        job_id: '1',
+        job_type: JOB_TYPE.BUSINESS_VERIFICATION,
+      };
+
+      let pollCount = 0;
+      const scope = nock('https://testapi.smileidentity.com')
+        .post('/v1/job_status')
+        .times(2)
+        .reply(() => {
+          pollCount += 1;
+          if (pollCount === 1) {
+            return [200, { job_complete: false }];
+          }
+          return [200, { job_complete: true }];
+        });
+
+      const resp = await instance.pollJobStatus(partner_params, 1, 1);
+      expect(resp).toEqual({ job_complete: true });
+      expect(pollCount).toEqual(2);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it('rejects after max retries on repeated polling errors', async () => {
+      expect.assertions(2);
+      const instance = new IDApi('001', 'api_key', 0);
+      const partner_params = {
+        user_id: '1',
+        job_id: '1',
+        job_type: JOB_TYPE.BUSINESS_VERIFICATION,
+      };
+
+      const scope = nock('https://testapi.smileidentity.com')
+        .post('/v1/job_status')
+        .times(2)
+        .replyWithError('poll error');
+
+      await expect(instance.pollJobStatus(partner_params, 1, 1)).rejects.toThrow(
+        new Error('poll error'),
+      );
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it('rejects when partner params are invalid', async () => {
+      expect.assertions(1);
+      const instance = new IDApi('001', 'api_key', 0);
+
+      // @ts-ignore
+      await expect(instance.pollJobStatus(null)).rejects.toThrow(
+        new Error('Please ensure that you send through partner params'),
+      );
     });
   });
 });
